@@ -1,0 +1,15 @@
+# Copy to application-local.properties (gitignored) or set as environment variables.
+# Run with: ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+#
+# Get values from Supabase Dashboard -> Project Settings -> Database -> Connection string -> Session pooler
+
+spring.datasource.url=jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+spring.datasource.username=postgres.<project-ref>
+spring.datasource.password=<your-database-password>
+
+jwt.secret=<base64-encoded-256-bit-secret>
+
+# Cloudinary (https://cloudinary.com/console)
+cloudinary.cloud-name=<your-cloud-name>
+cloudinary.api-key=<your-api-key>
+cloudinary.api-secret=<your-api-secret>
