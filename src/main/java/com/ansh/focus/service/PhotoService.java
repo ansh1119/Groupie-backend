@@ -15,6 +15,8 @@ import com.ansh.focus.model.User;
 import com.ansh.focus.repository.GroupMemberRepository;
 import com.ansh.focus.repository.GroupRepository;
 import com.ansh.focus.repository.PhotoRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +30,8 @@ import java.util.UUID;
 
 @Service
 public class PhotoService {
+
+	private static final Logger log = LoggerFactory.getLogger(PhotoService.class);
 
 	private static final int MAX_PAGE_SIZE = 50;
 
@@ -50,12 +54,33 @@ public class PhotoService {
 
 	@Transactional
 	public PhotoUploadResponse uploadPhotos(UUID groupId, List<MultipartFile> files, User uploader) {
+		log.debug("Starting photo upload: groupId={}, uploaderId={}, uploader={}", groupId, uploader.getId(), uploader.getUsername());
+
 		Group group = getGroupAndEnsureMember(groupId, uploader);
+		log.debug("Group membership verified: groupId={}, groupName={}", groupId, group.getName());
+
 		List<MultipartFile> validFiles = validateFiles(files);
+		log.info("Validated {} file(s) for upload to groupId={}", validFiles.size(), groupId);
 
 		List<Photo> savedPhotos = new ArrayList<>();
-		for (MultipartFile file : validFiles) {
+		for (int i = 0; i < validFiles.size(); i++) {
+			MultipartFile file = validFiles.get(i);
+			log.info(
+					"Uploading file {}/{} to Cloudinary: originalFilename={}, size={}, contentType={}",
+					i + 1,
+					validFiles.size(),
+					file.getOriginalFilename(),
+					file.getSize(),
+					file.getContentType()
+			);
 			CloudinaryUploadResult uploadResult = cloudinaryService.upload(file, groupId);
+			log.info(
+					"Cloudinary upload succeeded for file {}/{}: publicId={}",
+					i + 1,
+					validFiles.size(),
+					uploadResult.publicId()
+			);
+
 			Photo photo = photoRepository.save(new Photo(
 					group,
 					uploader,
@@ -63,6 +88,13 @@ public class PhotoService {
 					uploadResult.thumbnailUrl(),
 					uploadResult.publicId()
 			));
+			log.info(
+					"Saved photo metadata {}/{}: photoId={}, groupId={}",
+					i + 1,
+					validFiles.size(),
+					photo.getId(),
+					groupId
+			);
 			savedPhotos.add(photo);
 		}
 

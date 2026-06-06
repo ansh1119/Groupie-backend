@@ -19,12 +19,14 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,6 +39,66 @@ public class GroupController {
 
 	public GroupController(GroupService groupService) {
 		this.groupService = groupService;
+	}
+
+	@GetMapping
+	@Operation(
+			summary = "List groups for the authenticated user",
+			description = "Returns all groups where the authenticated user is a member, including member lists."
+	)
+	@ApiResponses({
+			@ApiResponse(
+					responseCode = "200",
+					description = "Groups retrieved successfully",
+					content = @Content(schema = @Schema(implementation = GroupResponse.class))
+			),
+			@ApiResponse(
+					responseCode = "401",
+					description = "Missing or invalid JWT token",
+					content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+			)
+	})
+	public ResponseEntity<List<GroupResponse>> listGroups(
+			@AuthenticationPrincipal UserPrincipal principal
+	) {
+		List<GroupResponse> response = groupService.listGroupsForUser(principal.getUser());
+		return ResponseEntity.ok(response);
+	}
+
+	@GetMapping("/{groupId}")
+	@Operation(
+			summary = "Get group details",
+			description = "Returns group details and members. Only group members may access this endpoint."
+	)
+	@ApiResponses({
+			@ApiResponse(
+					responseCode = "200",
+					description = "Group retrieved successfully",
+					content = @Content(schema = @Schema(implementation = GroupResponse.class))
+			),
+			@ApiResponse(
+					responseCode = "401",
+					description = "Missing or invalid JWT token",
+					content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+			),
+			@ApiResponse(
+					responseCode = "403",
+					description = "User is not a member of this group",
+					content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+			),
+			@ApiResponse(
+					responseCode = "404",
+					description = "Group not found",
+					content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+			)
+	})
+	public ResponseEntity<GroupResponse> getGroup(
+			@Parameter(description = "Group UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+			@PathVariable UUID groupId,
+			@AuthenticationPrincipal UserPrincipal principal
+	) {
+		GroupResponse response = groupService.getGroup(groupId, principal.getUser());
+		return ResponseEntity.ok(response);
 	}
 
 	@PostMapping
@@ -95,7 +157,7 @@ public class GroupController {
 			),
 			@ApiResponse(
 					responseCode = "400",
-					description = "Validation failed (missing user ID)",
+					description = "Validation failed (missing username)",
 					content = @Content(schema = @Schema(implementation = ErrorResponse.class))
 			),
 			@ApiResponse(

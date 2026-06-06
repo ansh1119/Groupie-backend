@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,7 +24,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,6 +35,8 @@ import java.util.UUID;
 @Tag(name = "Group Photos", description = "Upload and view group photos. Images are stored on Cloudinary; only URLs and metadata are persisted in PostgreSQL.")
 @SecurityRequirement(name = "bearerAuth")
 public class PhotoController {
+
+	private static final Logger log = LoggerFactory.getLogger(PhotoController.class);
 
 	private final PhotoService photoService;
 
@@ -87,10 +90,47 @@ public class PhotoController {
 			@Parameter(description = "Group UUID")
 			@PathVariable UUID groupId,
 			@Parameter(description = "One or more image files to upload")
-			@RequestPart("files") List<MultipartFile> files,
+			@RequestParam("files") List<MultipartFile> files,
 			@AuthenticationPrincipal UserPrincipal principal
 	) {
+		if (principal == null) {
+			log.error("Photo upload rejected: authenticated principal is null for groupId={}", groupId);
+			throw new IllegalStateException("Authenticated user is required for photo upload");
+		}
+
+		log.info(
+				"Photo upload request: groupId={}, uploader={}, fileCount={}",
+				groupId,
+				principal.getUsername(),
+				files == null ? null : files.size()
+		);
+		if (files == null) {
+			log.warn("Photo upload request received with null files list for groupId={}", groupId);
+		} else {
+			for (int i = 0; i < files.size(); i++) {
+				MultipartFile file = files.get(i);
+				if (file == null) {
+					log.warn("Photo upload file[{}] is null for groupId={}", i, groupId);
+					continue;
+				}
+				log.info(
+						"Photo upload file[{}]: originalFilename={}, size={}, contentType={}, empty={}",
+						i,
+						file.getOriginalFilename(),
+						file.getSize(),
+						file.getContentType(),
+						file.isEmpty()
+				);
+			}
+		}
+
 		PhotoUploadResponse response = photoService.uploadPhotos(groupId, files, principal.getUser());
+		log.info(
+				"Photo upload completed: groupId={}, uploader={}, uploadedCount={}",
+				groupId,
+				principal.getUsername(),
+				response.count()
+		);
 		return ResponseEntity.status(HttpStatus.CREATED).body(response);
 	}
 
